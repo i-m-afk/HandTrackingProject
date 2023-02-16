@@ -1,56 +1,67 @@
 import cv2
 import mediapipe as mp
 import time
-class handDetector():
-    def __init__(self, mode=False, maxHands=2, detectionCon=0.5, trackCon=0.5):
+
+class HandDetector:
+    def __init__(self, mode=False, max_hands=2, detection_confidence=0.5, tracking_confidence=0.5):
         self.mode = mode
-        self.maxHands = maxHands
-        self.detectionCon = detectionCon
-        self.trackCon = trackCon
-        self.mpHands = mp.solutions.hands
-        self.hands = self.mpHands.Hands(self.mode, self.maxHands,
-                                        self.detectionCon, self.trackCon)
-        self.mpDraw = mp.solutions.drawing_utils
-    def findHands(self, img, draw=True):
-        imgRGB = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        self.results = self.hands.process(imgRGB)
-        # print(results.multi_hand_landmarks)
-        if self.results.multi_hand_landmarks:
-            for handLms in self.results.multi_hand_landmarks:
+        self.max_hands = max_hands
+        self.detection_confidence = detection_confidence
+        self.tracking_confidence = tracking_confidence
+        self.mp_hands = mp.solutions.hands
+        self.hands = self.mp_hands.Hands(self.mode, self.max_hands, self.detection_confidence, self.tracking_confidence)
+        self.mp_draw = mp.solutions.drawing_utils
+
+    def find_hands(self, image, draw=True):
+        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        results = self.hands.process(image_rgb)
+        if results.multi_hand_landmarks:
+            for hand_landmarks in results.multi_hand_landmarks:
                 if draw:
-                    self.mpDraw.draw_landmarks(img, handLms,
-                                               self.mpHands.HAND_CONNECTIONS)
-        return img
-    def findPosition(self, img, handNo=0, draw=True):
-        lmList = []
-        if self.results.multi_hand_landmarks:
-            myHand = self.results.multi_hand_landmarks[handNo]
-            for id, lm in enumerate(myHand.landmark):
-                # print(id, lm)
-                h, w, c = img.shape
-                cx, cy = int(lm.x * w), int(lm.y * h)
-                # print(id, cx, cy)
-                lmList.append([id, cx, cy])
+                    self.mp_draw.draw_landmarks(image, hand_landmarks, self.mp_hands.HAND_CONNECTIONS)
+        return image
+
+    def find_position(self, image, hand_no=0, draw=True):
+        landmark_list = []
+        results = self.hands.process(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+        if results.multi_hand_landmarks:
+            hand_landmarks = results.multi_hand_landmarks[hand_no]
+            for id, landmark in enumerate(hand_landmarks.landmark):
+                height, width, channels = image.shape
+                x, y = int(landmark.x * width), int(landmark.y * height)
+                landmark_list.append([id, x, y])
                 if draw:
-                    cv2.circle(img, (cx, cy), 5, (255, 0, 0), cv2.FILLED)
-        return lmList
+                    cv2.circle(image, (x, y), 5, (255, 0, 0), cv2.FILLED)
+        return landmark_list
+
 def main():
-    pTime = 0
-    cTime = 0
+    p_time = 0
+    c_time = 0
     cap = cv2.VideoCapture(0)
-    detector = handDetector()
+    detector = HandDetector()
     while True:
-        success, img = cap.read()
-        img = detector.findHands(img)
-        lmList = detector.findPosition(img)
-        if len(lmList) != 0:
-            print(lmList[4])
-        cTime = time.time()
-        fps = 1 / (cTime - pTime)
-        pTime = cTime
-        cv2.putText(img, str(int(fps)), (10, 70), cv2.FONT_HERSHEY_PLAIN, 3,
-                    (255, 0, 255), 3)
-        cv2.imshow("Image", img)
-        cv2.waitKey(1)
+        success, image = cap.read()
+        if not success:
+            print("Error: Failed to read image from camera.")
+            break
+
+        image = detector.find_hands(image)
+        landmark_list = detector.find_position(image)
+        if len(landmark_list) != 0:
+            print(landmark_list[4])
+
+        c_time = time.time()
+        fps = 1 / (c_time - p_time)
+        p_time = c_time
+
+        cv2.putText(image, f"FPS: {int(fps)}", (10, 70), cv2.FONT_HERSHEY_PLAIN, 3, (255, 0, 255), 3)
+        cv2.imshow("Image", image)
+
+        if cv2.waitKey(1) == ord('q'):
+            break
+
+    cap.release()
+    cv2.destroyAllWindows()
+
 if __name__ == "__main__":
     main()
